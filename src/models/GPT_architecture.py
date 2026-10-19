@@ -110,7 +110,6 @@ class GPT_RoPE(nn.Module):
 
     def forward(self, idx, targets=None, cache=None):
         B, L = idx.shape
-        positions = torch.arange(L, device=idx.device)
 
         # positions are applied inside the attention blocks (RoPE); with a KV cache each block
         # reads the offset of the new tokens from the cache
