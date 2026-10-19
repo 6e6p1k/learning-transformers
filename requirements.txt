@@ -1,0 +1,9 @@
+torch
+numpy
+requests
+jupyter
+# notebooks/reviews.ipynb and notebooks/reviews/train_reviews_ru.py
+scikit-learn
+tensorboard
+transformers
+datasets
