@@ -22,17 +22,14 @@ class AttentionBlock(nn.Module):
         V = self.W_v(x).view(B, L, self.num_heads, self.heads_dim).transpose(1, 2)
         # (B, num_heads, L, heads_dim)
 
-        # KV cache: the new keys and values are appended to the ones already stored for this
-        # layer and attention runs over all of them. Without a cache, past = 0 and nothing changes.
+        # kv cache — append new K, V to the ones from previous steps
         past = 0
         if cache is not None:
             past = cache.seq_len(layer)
             K, V = cache.update(layer, K, V)
         # (B, num_heads, past + L, heads_dim)
 
-        # causal mask — query i sits at position past + i and may only see keys at positions
-        # <= past + i, i.e. the upper triangle shifted right by `past` is -inf (with past = 0
-        # this is the usual triu mask; for a single cached step nothing is masked)
+        # causal mask — upper triangle = -inf so future tokens are invisible (shifted by past tokens)
         QK_T = torch.matmul(Q, K.transpose(-1, -2)) / (self.heads_dim ** 0.5)
         mask = torch.triu(torch.ones(L, past + L, device=x.device), diagonal=1 + past).bool()
         QK_T = QK_T.masked_fill(mask, float("-inf"))
@@ -62,9 +59,7 @@ class AttentionBlockWithRoPE(nn.Module):
     def forward(self, x, cache=None, layer=0):
         B, L, D = x.shape
 
-        # RoPE rotates by absolute position: with a cache the tokens in x come after the ones
-        # already seen, so the rotation is offset by that count. K is cached after the rotation,
-        # so every key is rotated exactly once, at its own position.
+        # offset = tokens already in the kv cache, K is cached after rotation
         offset = 0 if cache is None else cache.position(layer)
         Q = self.rope(self.W_q(x), offset).view(B, L, self.num_heads, self.heads_dim).transpose(1, 2)
         K = self.rope(self.W_k(x), offset).view(B, L, self.num_heads, self.heads_dim).transpose(1, 2)
@@ -77,7 +72,7 @@ class AttentionBlockWithRoPE(nn.Module):
             K, V = cache.update(layer, K, V)
         # (B, num_heads, past + L, heads_dim)
 
-        # causal mask — upper triangle shifted right by `past` is -inf so future tokens are invisible
+        # causal mask — upper triangle = -inf so future tokens are invisible (shifted by past tokens)
         QK_T = torch.matmul(Q, K.transpose(-1, -2)) / (self.heads_dim ** 0.5)
         mask = torch.triu(torch.ones(L, past + L, device=x.device), diagonal=1 + past).bool()
         QK_T = QK_T.masked_fill(mask, float("-inf"))

@@ -1,9 +1,5 @@
-"""Cached and uncached inference must agree.
-
-CPU only, a tiny randomly initialised model, runs in seconds:
-
-    python tests/test_kv_cache.py        # or: python -m pytest tests/
-"""
+# cached and uncached inference should agree
+# run from the repo root: python tests/test_kv_cache.py
 import os
 import sys
 
@@ -39,7 +35,7 @@ def random_tokens(length, seed=1):
 
 @torch.no_grad()
 def incremental_logits(model, seq, prefill):
-    """Run `prefill` tokens in one go, then one token per step; return logits for every position, (B, T, V)."""
+    # prefill tokens in one go, then one token per step; logits for every position
     cache = KVCache(len(model.blocks))
     logits, _ = model(seq[:, :prefill], cache=cache)
     chunks = [logits]
@@ -50,7 +46,7 @@ def incremental_logits(model, seq, prefill):
 
 
 def test_rope_offset_matches_full_sequence():
-    """Rotating one token with `offset` must equal rotating it inside the full sequence."""
+    # rotating one token with offset t == rotating it at position t of the full sequence
     rope = RoPE()
     torch.manual_seed(2)
     x = torch.randn(BATCH, CONTEXT_LEN, EMBEDDING_DIM)
@@ -61,7 +57,7 @@ def test_rope_offset_matches_full_sequence():
 
 
 def test_cached_matches_full_forward_within_context():
-    """Up to context_len tokens, a prefill plus one-token steps must give the logits of one full forward."""
+    # prefill + one-token steps == one full forward, up to context_len
     seq = random_tokens(CONTEXT_LEN)
     for kind in ("learned", "rope"):
         model = make_model(kind)
@@ -74,11 +70,7 @@ def test_cached_matches_full_forward_within_context():
 
 
 def test_rope_sliding_cache_matches_recomputed_window_single_layer():
-    """RoPE scores depend only on relative offsets, so dropping the oldest cache entries while positions
-    keep counting gives the logits of recomputing the last context_len tokens with positions re-based
-    at 1. This is exact for one layer only: in deeper layers the cached keys and values of the remaining
-    tokens were computed from hidden states that still saw the dropped tokens, which is why generate()
-    rebuilds the cache instead of cropping it (see test_generate_same_tokens_with_and_without_cache)."""
+    # dropping the oldest entries is exact for 1 layer only (deeper layers saw the dropped tokens)
     torch.manual_seed(0)
     model = GPT_RoPE(VOCAB_SIZE, EMBEDDING_DIM, NUM_HEADS, HIDDEN_DIM, CONTEXT_LEN, 1,
                      loss_fn=nn.CrossEntropyLoss()).eval()
@@ -99,8 +91,7 @@ def test_rope_sliding_cache_matches_recomputed_window_single_layer():
 
 
 def test_generate_same_tokens_with_and_without_cache():
-    """End to end: from the same RNG state generate() must sample the same tokens either way,
-    including past context_len, where both models rebuild the cache from the last context_len tokens."""
+    # same rng state -> same tokens with and without cache, also past context_len
     prompt = random_tokens(3)
     for kind in ("learned", "rope"):
         model = make_model(kind)

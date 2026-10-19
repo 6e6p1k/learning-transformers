@@ -33,7 +33,7 @@ class GPT(nn.Module):
 
     def forward(self, idx, targets=None, cache=None):
         B, L = idx.shape
-        # with a KV cache, idx holds only the new tokens: they continue from the last cached position
+        # with kv cache idx holds only the new tokens
         past = 0
         if cache is not None:
             past = cache.position(0)
@@ -63,11 +63,7 @@ class GPT(nn.Module):
                 idx = torch.cat([idx, next_tok], dim=1)
             return idx
 
-        # KV cache: the prompt is run once, after that every step feeds a single token and attends
-        # over the cached keys and values. The learned positional embedding is absolute, so the cache
-        # is only valid while the window does not slide: once the sequence outgrows context_len the
-        # cache is rebuilt from the last context_len tokens, which is exactly the window the uncached
-        # path recomputes. Both paths therefore give the same logits at every step.
+        # kv cache: prompt runs once, then one token per step; full window -> cache rebuilt
         cache = KVCache(len(self.blocks))
         tokens = idx[:, -self.context_len:]
         for _ in range(max_new_tokens):
@@ -111,8 +107,7 @@ class GPT_RoPE(nn.Module):
     def forward(self, idx, targets=None, cache=None):
         B, L = idx.shape
 
-        # positions are applied inside the attention blocks (RoPE); with a KV cache each block
-        # reads the offset of the new tokens from the cache
+        # positions come from RoPE inside the attention blocks
         x = self.tok_emb(idx)  # (B, L, D)
         for i, block in enumerate(self.blocks):
             x = block(x, cache=cache, layer=i)
@@ -136,12 +131,7 @@ class GPT_RoPE(nn.Module):
                 idx = torch.cat([idx, next_tok], dim=1)
             return idx
 
-        # KV cache: the prompt is run once, after that every step feeds a single token and attends
-        # over the cached keys and values. Once the sequence outgrows context_len the cache is rebuilt
-        # from the last context_len tokens, exactly as in GPT.generate: simply dropping the oldest
-        # entries (KVCache.crop) would be exact for one layer only, because in deeper layers the cached
-        # keys and values of the remaining tokens were computed from hidden states that still saw the
-        # dropped tokens, whereas the uncached path recomputes the window from scratch.
+        # kv cache: same as GPT.generate (dropping old entries is only exact for 1 layer, so it's rebuilt)
         cache = KVCache(len(self.blocks))
         tokens = idx[:, -self.context_len:]
         for _ in range(max_new_tokens):
