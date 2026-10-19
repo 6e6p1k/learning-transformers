@@ -13,8 +13,8 @@ class TransformerBlock(nn.Module):
         self.ln1 = nn.LayerNorm(embedding_dim)
         self.ln2 = nn.LayerNorm(embedding_dim)
 
-    def forward(self, x):
-        x = self.ln1(x + self.attn(x))
+    def forward(self, x, cache=None, layer=0):
+        x = self.ln1(x + self.attn(x, cache=cache, layer=layer))
         x = self.ln2(x + self.ffn(x))
         return x
     
@@ -31,7 +31,7 @@ class TransformerBlockWithRoPE(nn.Module):
         self.ln1 = nn.LayerNorm(embedding_dim)
         self.ln2 = nn.LayerNorm(embedding_dim)
 
-    def forward(self, x):
-        x = self.ln1(x + self.attn(x))
+    def forward(self, x, cache=None, layer=0):
+        x = self.ln1(x + self.attn(x, cache=cache, layer=layer))
         x = self.ln2(x + self.ffn(x))
         return x
